@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# Env / secrets
+.env
+.env.local
+.env.prod
+secrets/
+
+# Data — kept out of git; tests/data/images holds small sample images
+tests/data/images/large/
+*.zip
+*.tar.gz
+models/
+.insightface/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# JMeter results
+jmeter/*.jtl
+jmeter/logs/

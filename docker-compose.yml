@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  face-cluster:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: face-cluster-service:1.0.0
+    container_name: face-cluster
+    environment:
+      - ENV=prod
+      - LOG_LEVEL=INFO
+      - DETECTOR_NAME=buffalo_l
+      - CLUSTERING_BACKEND=agglomerative
+      - DEFAULT_THRESHOLD=0.6
+      - REDIS_URL=redis://redis:6379/0
+      - GIT_SHA=${GIT_SHA:-dev}
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    volumes:
+      - insightface-cache:/root/.insightface
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: face-cluster-redis
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  insightface-cache:

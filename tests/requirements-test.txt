@@ -1,0 +1,4 @@
+# Tests
+pytest>=7.4
+pytest-html>=4.1
+httpx>=0.26
