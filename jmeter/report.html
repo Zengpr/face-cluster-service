@@ -1,0 +1,28 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Load Test Report</title>
+<style>body{font-family:sans-serif;margin:40px}table{border-collapse:collapse}
+td,th{border:1px solid #ccc;padding:8px 12px;text-align:right}
+th{background:#f5f5f5}tr.pass td{background:#e8ffe8}tr.fail td{background:#ffe8e8}</style>
+</head><body>
+<h1>Load Test Report</h1>
+<p>Target: <code>http://localhost:8000</code></p>
+<table>
+<tr><th>Metric</th><th>Value</th></tr>
+<tr class="pass"><td>Concurrency</td><td>4</td></tr>
+<tr class="pass"><td>Total requests</td><td>20</td></tr>
+<tr class="pass"><td>Wall time</td><td>0.2s</td></tr>
+<tr class="pass"><td>OK responses</td><td>20</td></tr>
+<tr class="pass"><td>Error rate</td><td>0.0%</td></tr>
+<tr class="pass"><td>Throughput</td><td>88.8 req/s</td></tr>
+<tr class="pass"><td>p50 latency</td><td>39 ms</td></tr>
+<tr class="pass"><td>p90 latency</td><td>52 ms</td></tr>
+<tr class="pass"><td>p99 latency</td><td>57 ms</td></tr>
+</table>
+<h2>Latency distribution</h2>
+<pre>{
+  "p50": "39ms",
+  "p75": "42ms",
+  "p90": "52ms",
+  "p95": "57ms",
+  "p99": "57ms"
+}</pre>
+</body></html>

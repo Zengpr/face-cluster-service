@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     prometheus_enabled: bool = True
     cors_allow_origins: tuple[str, ...] = ("*",)
 
+    demo_mode: bool = False
+    rate_limit_per_minute: int = Field(60, ge=0)
+
     models_root: Path = Path("/root/.insightface/models")
 
 

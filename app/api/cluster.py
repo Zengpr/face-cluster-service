@@ -5,7 +5,7 @@ import asyncio
 import time
 from typing import Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
 
 from app.api.deps import enforce_image_budget, embedder_loaded
 from app.core.config import settings
@@ -54,6 +54,7 @@ async def cluster_sync(
     files: list[UploadFile] = File(...),
     threshold: float | None = Form(None),
     backend: Literal["agglomerative", "dbscan"] | None = Form(None),
+    x_demo_mode: bool = Header(False),
     _loaded: None = Depends(embedder_loaded),
     _budget: None = Depends(enforce_image_budget),
 ) -> ClusterResponse:
@@ -64,7 +65,7 @@ async def cluster_sync(
             raise ServiceError(ErrCode.INVALID_THRESHOLD, "threshold must be in [0,2]")
         files_ingested = _ingest(files)
         result = await asyncio.to_thread(
-            run_cluster, files_ingested, threshold, backend
+            run_cluster, files_ingested, threshold, backend, x_demo_mode
         )
         REQUESTS.labels(endpoint=endpoint, status=_SUCCESS).inc()
         CLUSTERS.observe(result["n_clusters"])
@@ -84,6 +85,7 @@ async def cluster_async(
     files: list[UploadFile] = File(...),
     threshold: float | None = Form(None),
     backend: Literal["agglomerative", "dbscan"] | None = Form(None),
+    x_demo_mode: bool = Header(False),
     _loaded: None = Depends(embedder_loaded),
     _budget: None = Depends(enforce_image_budget),
 ) -> AsyncSubmitResponse:
@@ -113,7 +115,7 @@ async def cluster_async(
     async def runner() -> None:
         task_store.set_state(task_id, "running")
         try:
-            result = await asyncio.to_thread(run_cluster, raw, threshold, backend)
+            result = await asyncio.to_thread(run_cluster, raw, threshold, backend, x_demo_mode)
             await task_store.store_result(task_id, result)
             log.info("task.done", task_id=task_id)
         except ServiceError as exc:

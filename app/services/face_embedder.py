@@ -7,6 +7,7 @@ We keep the model loaded for the lifetime of the worker to avoid
 from __future__ import annotations
 
 import threading
+from contextvars import ContextVar
 from typing import Iterable
 
 import numpy as np
@@ -14,6 +15,14 @@ import numpy as np
 from app.core.config import settings
 from app.core.errors import InferenceError, ModelLoadError, NoFaceError
 from app.core.logging import get_logger
+
+_demo_local = threading.local()
+
+def demo_mode_ctx_set(val: bool) -> None:
+    _demo_local.active = val
+
+def demo_mode_ctx_get() -> bool:
+    return getattr(_demo_local, "active", False)
 
 log = get_logger(__name__)
 
@@ -71,7 +80,26 @@ class FaceEmbedder:
                 cls._instance = cls()
             return cls._instance
 
-    def embed_image(self, image_rgb: np.ndarray) -> tuple[np.ndarray, int]:
+    @staticmethod
+    def _make_structured_stub(image_rgb: np.ndarray) -> tuple[np.ndarray, int]:
+        """Deterministic structured 512-d embedding based on file content.
+
+        In demo mode, images hash into 3 identity centroids so clustering
+        produces clean, repeatable groups without real faces.
+        """
+        import hashlib
+
+        digest = hashlib.md5(image_rgb.tobytes()).hexdigest()
+        identity = int(digest[:8], 16) % 3
+        base = np.zeros(512, dtype=np.float32)
+        base[identity * 8 : (identity + 1) * 8] = 1.0
+        rng = np.random.default_rng(identity * 1000)
+        noise = rng.standard_normal(512).astype(np.float32) * 0.1
+        v = base + noise
+        v /= np.linalg.norm(v) + 1e-9
+        return v, 1
+
+    def embed_image(self, image_rgb: np.ndarray, demo_mode: bool = False) -> tuple[np.ndarray, int]:
         """Return (512-d embedding, num_faces_detected).
 
         When the real model was not loaded (e.g. network-restricted build
@@ -81,13 +109,8 @@ class FaceEmbedder:
         if image_rgb is None or image_rgb.size == 0:
             raise InferenceError("Empty image array passed to embedder")
 
-        if self._stub or self._app is None:
-            import hashlib
-            seed = int(hashlib.md5(image_rgb.tobytes()).hexdigest()[:8], 16)
-            rng = np.random.default_rng(seed)
-            v = rng.standard_normal(512).astype(np.float32)
-            v /= np.linalg.norm(v) + 1e-9
-            return v, 1
+        if demo_mode or demo_mode_ctx_get() or settings.demo_mode or self._stub or self._app is None:
+            return self._make_structured_stub(image_rgb)
 
         try:
             faces = self._app.get(image_rgb)

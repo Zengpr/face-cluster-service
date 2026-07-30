@@ -18,6 +18,7 @@ def run_cluster(
     files: list[tuple[str, bytes, str | None]],
     threshold: float | None,
     backend: Literal["agglomerative", "dbscan"] | None,
+    demo_mode: bool = False,
 ) -> dict:
     if not files:
         raise ServiceError(ErrCode.NO_IMAGES, "No images supplied")
@@ -38,7 +39,7 @@ def run_cluster(
     embeddings, kept_files = [], []
     for fname, rgb in images_rgb:
         try:
-            emb, n_faces = embedder.embed_image(rgb)
+            emb, n_faces = embedder.embed_image(rgb, demo_mode=demo_mode)
         except NoFaceError:
             log.warning("no.face", file=fname)
             continue
