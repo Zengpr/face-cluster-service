@@ -14,7 +14,13 @@ ENV PIP_NO_CACHE_DIR=1 \
 
 WORKDIR /build
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+ARG APT_MIRROR=https://mirrors.aliyun.com/debian
+RUN set -eux; \
+    if [ "${APT_MIRROR}" != "DISABLED" ]; then \
+      sed -i "s|http://deb.debian.org/debian|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
+      sed -i "s|http://deb.debian.org/debian|${APT_MIRROR}|g" /etc/apt/sources.list 2>/dev/null || true; \
+    fi; \
+    apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         gcc \
         g++ \
@@ -26,12 +32,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements.txt .
 
-RUN pip install --upgrade pip && \
-    pip install --prefix=/install --no-deps -r requirements.txt \
-    && for dep in $(grep -v '^#' requirements.txt | grep -v '^$'); do \
-         echo "Resolving transitive deps for $dep"; \
-         pip install --prefix=/install "$dep" 2>&1 | tail -1 ; \
-       done
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple \
+    && pip config set global.timeout 60 \
+    && pip install --upgrade pip \
+    && pip install --prefix=/install -r requirements.txt
 
 # ---------------------------------------------------------------------------
 # Runtime layer
@@ -49,15 +53,33 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# onnxruntime 1.16's pybind11_state.so requires executable stack which
+# modern Debian kernels reject. Pre-apply ``execsetstatus`` via a tiny
+# ELF header patcher so import does not throw at runtime.
+ARG APT_MIRROR=https://mirrors.aliyun.com/debian
+RUN set -eux; \
+    if [ "${APT_MIRROR}" != "DISABLED" ]; then \
+      sed -i "s|http://deb.debian.org/debian|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
+      sed -i "s|http://deb.debian.org/debian|${APT_MIRROR}|g" /etc/apt/sources.list 2>/dev/null || true; \
+    fi; \
+    apt-get update && apt-get install -y --no-install-recommends \
         libgl1 \
         libglib2.0-0 \
         libgomp1 \
         curl \
         tini \
+        unzip \
     && rm -rf /var/lib/apt/lists/*
 
+# onnxruntime 1.16 / 1.17 ships a pybind .so with PT_GNU_STACK=RWE.
+# Modern Debian kernels (with `mprotect` enforcing NX) reject that and
+# raise ImportError "cannot enable executable stack". We flip the X
+# bit off so the loader does NOT try to mark the stack executable.
+# This MUST run AFTER copying the builder site-packages layer.
 COPY --from=builder /install /usr/local
+COPY scripts/patch_execstack.py /usr/local/bin/patch_execstack.py
+RUN python /usr/local/bin/patch_execstack.py || echo "execstack patcher found nothing"
+
 COPY app ./app
 COPY scripts ./scripts
 
@@ -66,9 +88,11 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD curl -fsS http://localhost:8000/health || exit 1
 
-# Pre-download buffalo_l on container start so first request stays hot.
+# Pre-download buffalo_l at build time (best-effort, falls back to stub).
 COPY scripts/download_model.sh /usr/local/bin/download_model.sh
-RUN chmod +x /usr/local/bin/download_model.sh
+COPY scripts/start.sh /app/scripts/start.sh
+RUN chmod +x /usr/local/bin/download_model.sh /app/scripts/start.sh \
+    && /usr/local/bin/download_model.sh true
 
-ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/download_model.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["/app/scripts/start.sh"]

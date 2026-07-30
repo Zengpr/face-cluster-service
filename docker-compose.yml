@@ -16,7 +16,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - GIT_SHA=${GIT_SHA:-dev}
     ports:
-      - "8000:8000"
+      - "8765:8000"
     depends_on:
       redis:
         condition: service_healthy
@@ -31,11 +31,11 @@ services:
       - insightface-cache:/root/.insightface
 
   redis:
-    image: redis:7.2-alpine
+    image: redis:6-alpine
     container_name: face-cluster-redis
     command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
     ports:
-      - "6379:6379"
+      - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s

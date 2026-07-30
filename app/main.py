@@ -53,7 +53,7 @@ def create_app() -> FastAPI:
     return app
 
 
-async def _metrics() -> PlainTextResponse:
+async def _metrics(request=None) -> PlainTextResponse:
     return PlainTextResponse(
         exposition(),
         media_type="text/plain; version=0.0.4; charset=utf-8",

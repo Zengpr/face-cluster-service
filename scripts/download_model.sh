@@ -1,33 +1,34 @@
 #!/usr/bin/env bash
-# Pre-download buffalo_l model pack if not already present, then exec CMD.
-# We bundle the download here so ``docker run`` can use a clean image without a
-# separate model layer (good for the interview demo; prod would mount a volume).
+# Pre-download buffalo_l model pack if not already present.
+# Non-blocking — if the download fails (behind a firewall, slow network),
+# the app starts in stub mode (see app/services/face_embedder.py).
 set -eo pipefail
 
 MODEL_ROOT="${INSIGHTFACE_HOME:-/root/.insightface}"
 PACK_NAME="buffalo_l"
-ZIP_NAME="insightface_model_pack_buffalo_l.zip"
 URL="${INSIGHTFACE_MODEL_URL:-https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip}"
 
 DEST="${MODEL_ROOT}/models/${PACK_NAME}"
-ZIP_DEST="${MODEL_ROOT}/models/${ZIP_NAME}"
 
 if [ -f "${DEST}/w600k_r50.onnx" ] || [ -f "${DEST}/det_10g.onnx" ]; then
   echo "[model] ${PACK_NAME} already present, skip download"
 else
-  echo "[model] downloading ${PACK_NAME} from ${URL}"
+  echo "[model] trying download (best-effort, never blocks boot)"
   mkdir -p "${MODEL_ROOT}/models"
-  curl -fsSL -o "${ZIP_DEST}" "${URL}" || {
-    echo "[model] download failed — service will start in degraded mode"; exec "$@"
-  }
-  # InsightFace stores the zip with a top-level folder named "buffalo_l".
-  # The python code expects an folder layout under models/<name>.
-  if unzip -o "${ZIP_DEST}" -d "${MODEL_ROOT}/models" >/dev/null 2>&1; then
-    rm -f "${ZIP_DEST}"
+  # Fast attempt — 30s connect, 180s max, or we give up.
+  if curl -fsSL --connect-timeout 15 --max-time 180 \
+    -o "${MODEL_ROOT}/models/${PACK_NAME}.zip" "${URL}" 2>/dev/null; then
+    if unzip -o "${MODEL_ROOT}/models/${PACK_NAME}.zip" \
+      -d "${MODEL_ROOT}/models" >/dev/null 2>&1; then
+      rm -f "${MODEL_ROOT}/models/${PACK_NAME}.zip"
+      echo "[model] downloaded and extracted"
+    else
+      echo "[model] unzip failed, will use stub"
+    fi
   else
-    echo "[model] unzip failed — keeping zip at ${ZIP_DEST}"; exec "$@"
+    echo "[model] download skipped (network restricted), stub mode active"
+    rm -f "${MODEL_ROOT}/models/${PACK_NAME}.zip" 2>/dev/null
   fi
 fi
 
-echo "[model] pack ready"
 exec "$@"
