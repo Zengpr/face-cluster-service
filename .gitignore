@@ -44,3 +44,7 @@ build/
 # JMeter results
 jmeter/*.jtl
 jmeter/logs/
+
+# temp
+BIT4ACE.tmp
+build*.log
