@@ -24,7 +24,7 @@ secrets/
 tests/data/images/large/
 *.zip
 *.tar.gz
-models/
+/models/
 .insightface/
 
 # IDE
