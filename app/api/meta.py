@@ -27,6 +27,24 @@ def _git_sha() -> str:
         return "unknown"
 
 
+@router.get("/", include_in_schema=False)
+async def root() -> dict:
+    return {
+        "service": "face-cluster-service",
+        "description": "Face clustering API — upload N images, get identity groups.",
+        "version": "2.0.0",
+        "endpoints": {
+            "health": "/health",
+            "readiness": "/ready",
+            "cluster_sync": "POST /cluster",
+            "cluster_async": "POST /cluster/async",
+            "metrics": "/metrics",
+            "docs": "/docs",
+        },
+        "example": "POST /cluster with multipart 'files' fields + threshold=0.6",
+    }
+
+
 @router.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     redis_ok = True
